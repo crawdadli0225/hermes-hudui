@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 
-const HERMES_ASCII = `
- ██╗  ██╗███████╗██████╗ ███╗   ███╗███████╗███████╗
- ██║  ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██╔════╝
- ███████║█████╗  ██████╔╝██╔████╔██║█████╗  ███████╗
- ██╔══██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ╚════██║
- ██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████║
- ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝
-`.trim()
+const HERMES_ASCII = [
+  ' ██╗  ██╗███████╗██████╗ ███╗   ███╗███████╗███████╗',
+  ' ██║  ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██╔════╝',
+  ' ███████║█████╗  ██████╔╝██╔████╔██║█████╗  ███████╗',
+  ' ██╔══██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ╚════██║',
+  ' ██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████║',
+  ' ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝',
+]
 
 const BOOT_LINES = [
   '☤ HERMES HUD v0.1.0',
@@ -32,19 +32,15 @@ export default function BootScreen({ onComplete }: BootScreenProps) {
   const [visibleLines, setVisibleLines] = useState(0)
   const [asciiVisible, setAsciiVisible] = useState(false)
   const [fadeOut, setFadeOut] = useState(false)
+  const [skipped, setSkipped] = useState(false)
 
   useEffect(() => {
-    // Show ASCII art first
     const asciiTimer = setTimeout(() => setAsciiVisible(true), 200)
-
-    // Then type lines one by one
     const lineTimers = BOOT_LINES.map((_, i) =>
-      setTimeout(() => setVisibleLines(i + 1), 600 + i * 120)
+      setTimeout(() => setVisibleLines(i + 1), 600 + i * 100)
     )
-
-    // Fade out and complete
-    const fadeTimer = setTimeout(() => setFadeOut(true), 600 + BOOT_LINES.length * 120 + 400)
-    const completeTimer = setTimeout(onComplete, 600 + BOOT_LINES.length * 120 + 900)
+    const fadeTimer = setTimeout(() => setFadeOut(true), 600 + BOOT_LINES.length * 100 + 400)
+    const completeTimer = setTimeout(onComplete, 600 + BOOT_LINES.length * 100 + 800)
 
     return () => {
       clearTimeout(asciiTimer)
@@ -54,25 +50,36 @@ export default function BootScreen({ onComplete }: BootScreenProps) {
     }
   }, [onComplete])
 
+  const handleSkip = () => {
+    if (!skipped) {
+      setSkipped(true)
+      onComplete()
+    }
+  }
+
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center z-50 transition-opacity duration-500"
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 transition-opacity duration-500 cursor-pointer select-none"
       style={{
         background: 'var(--hud-bg-deep)',
         opacity: fadeOut ? 0 : 1,
       }}
-      onClick={onComplete}
+      onClick={handleSkip}
     >
-      {/* ASCII logo */}
+      {/* ASCII logo — hidden on very narrow screens */}
       <pre
-        className="gradient-text text-[11px] leading-tight mb-6 transition-opacity duration-300"
-        style={{ opacity: asciiVisible ? 1 : 0 }}
+        className="gradient-text text-[8px] sm:text-[11px] leading-tight mb-4 sm:mb-6 transition-opacity duration-300 text-center overflow-hidden"
+        style={{
+          opacity: asciiVisible ? 1 : 0,
+          maxWidth: '90vw',
+          whiteSpace: 'pre',
+        }}
       >
-        {HERMES_ASCII}
+        {HERMES_ASCII.join('\n')}
       </pre>
 
       {/* Boot text */}
-      <div className="text-[11px] w-[400px]">
+      <div className="text-[12px] w-[90vw] max-w-[400px] px-4">
         {BOOT_LINES.slice(0, visibleLines).map((line, i) => (
           <div key={i} className="py-0.5" style={{
             color: line.startsWith('"') ? 'var(--hud-accent)' :
@@ -90,7 +97,7 @@ export default function BootScreen({ onComplete }: BootScreenProps) {
       </div>
 
       <div className="absolute bottom-6 text-[11px]" style={{ color: 'var(--hud-text-dim)' }}>
-        click to skip
+        tap to skip
       </div>
     </div>
   )

@@ -5,7 +5,7 @@ function GrowthDelta({ snapshots }: { snapshots: any[] }) {
   if (!snapshots || snapshots.length < 2) {
     return (
       <div className="text-[12px]" style={{ color: 'var(--hud-text-dim)' }}>
-        {snapshots?.length === 1 ? 'First snapshot recorded — delta available after next snapshot.' : 'No snapshots yet. Run hermes-hud snapshot to start tracking.'}
+        {snapshots?.length === 1 ? 'First snapshot — delta available after next.' : 'No snapshots yet. Run hermes-hud snapshot.'}
       </div>
     )
   }
@@ -66,18 +66,21 @@ export default function DashboardPanel() {
   if (isLoading || !data) {
     return (
       <Panel title="Overview" className="col-span-full">
-        <div className="glow text-[11px] animate-pulse">Collecting state...</div>
+        <div className="glow text-[12px] animate-pulse">Collecting state...</div>
       </Panel>
     )
   }
 
   const { config, memory, user, skills, sessions } = data
-  const dailyMessages = sessions?.daily_stats?.map((d: any) => d.messages) || []
-  const dailyTokens = sessions?.daily_stats?.map((d: any) => d.tokens) || []
+
+  // Precompute tool data once (not per render in map)
+  const toolEntries = sessions?.tool_usage
+    ? Object.entries(sessions.tool_usage).sort((a: any, b: any) => b[1] - a[1]).slice(0, 12)
+    : []
+  const maxToolCount = toolEntries.length > 0 ? (toolEntries[0][1] as number) : 1
 
   return (
     <>
-      {/* Row 1: overview + activity sparkline */}
       <Panel title="Overview">
         <div className="text-[12px] mb-3" style={{ color: 'var(--hud-text-dim)' }}>
           {config?.provider}<span style={{ color: 'var(--hud-primary)' }}>/</span>{config?.model}
@@ -88,10 +91,8 @@ export default function DashboardPanel() {
           <Stat value={(sessions?.total_tool_calls || 0).toLocaleString()} label="Tool Calls" />
           <Stat value={skills?.total || 0} label="Skills" />
         </div>
-
         <CapacityBar value={memory?.total_chars || 0} max={memory?.max_chars || 2200} label="MEMORY" />
         <CapacityBar value={user?.total_chars || 0} max={user?.max_chars || 1375} label="USER" />
-
         {sessions?.date_range?.[0] && (
           <div className="text-[12px] mt-3" style={{ color: 'var(--hud-text-dim)' }}>
             {new Date(sessions.date_range[0]).toLocaleDateString()} → {new Date(sessions.date_range[1]).toLocaleDateString()}
@@ -103,51 +104,45 @@ export default function DashboardPanel() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--hud-text-dim)' }}>
-              Messages/day · last {dailyMessages.length}d
+              Messages/day
             </div>
-            <Sparkline values={dailyMessages} width={360} height={45} />
+            <Sparkline values={(sessions?.daily_stats || []).map((d: any) => d.messages)} width={360} height={45} />
           </div>
           <div>
             <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--hud-text-dim)' }}>
               Tokens/day
             </div>
-            <Sparkline values={dailyTokens} width={360} height={45} />
+            <Sparkline values={(sessions?.daily_stats || []).map((d: any) => d.tokens)} width={360} height={45} />
           </div>
         </div>
-        <div className="mt-3 text-[12px] grid grid-cols-5 gap-1">
-          {sessions?.daily_stats?.slice(-10).map((d: any) => (
-            <div key={d.date} className="text-center py-1" style={{ background: 'var(--hud-bg-panel)' }}>
-              <div style={{ color: 'var(--hud-text-dim)' }}>{d.date.slice(5)}</div>
-              <div style={{ color: 'var(--hud-primary)' }}>{d.sessions}s</div>
-              <div>{d.messages}m</div>
-            </div>
-          ))}
-        </div>
+        {sessions?.daily_stats?.length > 0 && (
+          <div className="mt-3 text-[12px] grid grid-cols-5 gap-1">
+            {sessions.daily_stats.slice(-10).map((d: any) => (
+              <div key={d.date} className="text-center py-1" style={{ background: 'var(--hud-bg-panel)' }}>
+                <div style={{ color: 'var(--hud-text-dim)' }}>{d.date.slice(5)}</div>
+                <div style={{ color: 'var(--hud-primary)' }}>{d.sessions}s</div>
+                <div>{d.messages}m</div>
+              </div>
+            ))}
+          </div>
+        )}
       </Panel>
 
-      {/* Row 2: tools + growth delta + platforms */}
       <Panel title="Top Tools">
         <div className="text-[12px] space-y-0.5">
-          {sessions?.tool_usage && Object.entries(sessions.tool_usage)
-            .sort((a: any, b: any) => b[1] - a[1])
-            .slice(0, 12)
-            .map(([tool, count]: any) => {
-              const maxCount = Math.max(...Object.values(sessions.tool_usage as Record<string, number>))
-              const pct = (count / maxCount) * 100
-              return (
-                <div key={tool} className="flex items-center gap-2">
-                  <span className="w-[110px] truncate" style={{ color: 'var(--hud-text)' }}>
-                    {tool.replace('mcp_', '').replace('browser_', 'b_')}
-                  </span>
-                  <div className="flex-1 h-[3px]" style={{ background: 'var(--hud-bg-hover)' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: 'var(--hud-primary)' }} />
-                  </div>
-                  <span className="tabular-nums w-10 text-right" style={{ color: 'var(--hud-text-dim)' }}>
-                    {count}
-                  </span>
-                </div>
-              )
-            })}
+          {toolEntries.map(([tool, count]: any) => (
+            <div key={tool} className="flex items-center gap-2">
+              <span className="w-[110px] truncate" style={{ color: 'var(--hud-text)' }}>
+                {tool.replace('mcp_', '').replace('browser_', 'b_')}
+              </span>
+              <div className="flex-1 h-[3px]" style={{ background: 'var(--hud-bg-hover)' }}>
+                <div style={{ width: `${(count / maxToolCount) * 100}%`, height: '100%', background: 'var(--hud-primary)' }} />
+              </div>
+              <span className="tabular-nums w-10 text-right" style={{ color: 'var(--hud-text-dim)' }}>
+                {count}
+              </span>
+            </div>
+          ))}
         </div>
       </Panel>
 
@@ -164,11 +159,9 @@ export default function DashboardPanel() {
             </div>
           ))}
         </div>
-        {sessions?.daily_stats?.length > 0 && (
-          <div className="mt-3 text-[12px]" style={{ color: 'var(--hud-text-dim)' }}>
-            Total tokens: {(sessions?.total_tokens || 0).toLocaleString()}
-          </div>
-        )}
+        <div className="mt-3 text-[12px]" style={{ color: 'var(--hud-text-dim)' }}>
+          Total tokens: {(sessions?.total_tokens || 0).toLocaleString()}
+        </div>
       </Panel>
     </>
   )

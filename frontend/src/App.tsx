@@ -14,7 +14,6 @@ import AgentsPanel from './components/AgentsPanel'
 import ProfilesPanel from './components/ProfilesPanel'
 import PatternsPanel from './components/PatternsPanel'
 
-
 function TabContent({ tab }: { tab: TabId }) {
   switch (tab) {
     case 'dashboard': return <DashboardPanel />
@@ -31,18 +30,18 @@ function TabContent({ tab }: { tab: TabId }) {
   }
 }
 
-// Grid layout per tab
+// Grid layout per tab — responsive: 1 col on mobile, full on desktop
 const GRID_CLASS: Record<TabId, string> = {
-  dashboard: 'grid-cols-3 grid-rows-2',
-  memory: 'grid-cols-2',
-  skills: 'grid-cols-[2fr_1fr]',
-  sessions: 'grid-cols-[2fr_1fr]',
+  dashboard: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 grid-rows-[auto]',
+  memory: 'grid-cols-1 sm:grid-cols-2',
+  skills: 'grid-cols-1 lg:grid-cols-[2fr_1fr]',
+  sessions: 'grid-cols-1 lg:grid-cols-[2fr_1fr]',
   cron: 'grid-cols-1',
   projects: 'grid-cols-1',
-  health: 'grid-cols-2',
-  agents: 'grid-cols-2',
+  health: 'grid-cols-1 sm:grid-cols-2',
+  agents: 'grid-cols-1 lg:grid-cols-2',
   profiles: 'grid-cols-1',
-  patterns: 'grid-cols-3',
+  patterns: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
 }
 
 export default function App() {
@@ -87,17 +86,20 @@ export default function App() {
       </main>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-0.5 text-[10px] border-t"
+      <div className="flex items-center justify-between px-3 py-0.5 text-[10px] border-t shrink-0"
            style={{ borderColor: 'var(--hud-border)', color: 'var(--hud-text-dim)', background: 'var(--hud-bg-surface)' }}>
         <span>☤ hermes-hudui v0.1.0</span>
-        <span>
-          <span className="opacity-40">Ctrl+K</span> command palette
+        <span className="hidden sm:inline">
+          <span className="opacity-40">Ctrl+K</span> palette
           <span className="mx-2">·</span>
           <span className="opacity-40">1-9</span> tabs
           <span className="mx-2">·</span>
           <span className="opacity-40">t</span> theme
           <span className="mx-2">·</span>
           <span className="opacity-40">r</span> refresh
+        </span>
+        <span className="sm:hidden">
+          <span className="opacity-40">Ctrl+K</span> commands
         </span>
       </div>
     </ThemeProvider>

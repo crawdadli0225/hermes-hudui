@@ -1,27 +1,6 @@
 import { useApi } from '../hooks/useApi'
 import Panel, { CapacityBar } from './Panel'
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(n)
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return 'never'
-  const d = new Date(iso)
-  const now = new Date()
-  const secs = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (secs < 0) return 'just now'
-  if (secs < 60) return `${secs}s ago`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) {
-    const h = Math.floor(secs / 3600)
-    const m = Math.floor((secs % 3600) / 60)
-    return m ? `${h}h${m}m ago` : `${h}h ago`
-  }
-  return `${Math.floor(secs / 86400)}d ago`
-}
+import { timeAgo, formatTokens } from '../lib/utils'
 
 function StatusDot({ status }: { status: string }) {
   const color = status === 'active' || status === 'running'

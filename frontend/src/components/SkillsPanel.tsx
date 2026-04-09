@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApi } from '../hooks/useApi'
 import Panel from './Panel'
+import { timeAgo, formatSize } from '../lib/utils'
 
 export default function SkillsPanel() {
   const { data, isLoading } = useApi('/skills', 60000)
@@ -120,7 +121,7 @@ export default function SkillsPanel() {
                   {skill.description?.slice(0, 100)}{skill.description?.length > 100 ? '...' : ''}
                 </div>
                 <div className="text-[11px] mt-0.5" style={{ color: 'var(--hud-text-dim)' }}>
-                  {skill.modified_at ? relativeTime(skill.modified_at) : ''}
+                  {skill.modified_at ? timeAgo(skill.modified_at) : ''}
                 </div>
               </div>
             ))}
@@ -134,19 +135,4 @@ export default function SkillsPanel() {
   )
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)}KB`
-  return `${(bytes / 1048576).toFixed(1)}MB`
-}
 
-function relativeTime(iso: string): string {
-  const d = new Date(iso)
-  const now = new Date()
-  const secs = Math.floor((now.getTime() - d.getTime()) / 1000)
-  if (secs < 0) return 'just now'
-  if (secs < 60) return `${secs}s ago`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
-  return `${Math.floor(secs / 86400)}d ago`
-}

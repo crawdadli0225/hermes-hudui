@@ -1,12 +1,6 @@
 import { useApi } from '../hooks/useApi'
 import Panel from './Panel'
-
-function formatDur(mins: number | null): string {
-  if (!mins) return ''
-  if (mins < 1) return '<1m'
-  if (mins < 60) return `${Math.floor(mins)}m`
-  return `${Math.floor(mins / 60)}h${Math.floor(mins % 60)}m`
-}
+import { formatDur } from '../lib/utils'
 
 const SOURCE_STYLES: Record<string, { color: string; label: string }> = {
   cli: { color: 'var(--hud-success)', label: 'cli' },

@@ -278,3 +278,32 @@ body {
 .stat-delta.negative {
   color: var(--hud-error);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Mobile responsive
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  :root {
+    font-size: 13px;
+  }
+
+  .hud-panel-content {
+    padding: 8px 10px;
+  }
+
+  .hud-panel-title {
+    padding: 6px 10px 3px;
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    font-size: 12px;
+  }
+}

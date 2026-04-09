@@ -53,7 +53,7 @@ export default function PatternsPanel() {
 
       <Panel title="Hourly Activity" className="col-span-1">
         <HourlyHeatmap data={data.hourly_activity || []} />
-        <div className="flex justify-between text-[8px] mt-1" style={{ color: 'var(--hud-text-dim)' }}>
+        <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--hud-text-dim)' }}>
           <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
         </div>
         {data.peak_hour !== null && (
