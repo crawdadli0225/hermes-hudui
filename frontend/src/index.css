@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   HERMES HUD — Theme System
+   4 themes as CSS custom properties. One-line switch.
+   ═══════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono@2.304/fonts/webfonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono@2.304/fonts/webfonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Neural Awakening (default) ─────────────────────────── */
+[data-theme="ai"] {
+  --hud-bg-deep: #0a0a12;
+  --hud-bg-surface: #0e1020;
+  --hud-bg-panel: #141830;
+  --hud-bg-hover: #1c2040;
+  --hud-primary: #00d4ff;
+  --hud-primary-dim: #0087cc;
+  --hud-primary-glow: rgba(0, 212, 255, 0.4);
+  --hud-secondary: #00ffff;
+  --hud-accent: #ffd700;
+  --hud-text: #dadada;
+  --hud-text-dim: #6a7490;
+  --hud-border: rgba(0, 212, 255, 0.25);
+  --hud-border-bright: rgba(0, 212, 255, 0.5);
+  --hud-success: #00ffaa;
+  --hud-warning: #ffd700;
+  --hud-error: #ff4444;
+  --hud-gradient-start: #00afff;
+  --hud-gradient-end: #00ffff;
+}
+
+/* ── Blade Runner ───────────────────────────────────────── */
+[data-theme="blade-runner"] {
+  --hud-bg-deep: #0a0800;
+  --hud-bg-surface: #141008;
+  --hud-bg-panel: #1c1810;
+  --hud-bg-hover: #242018;
+  --hud-primary: #ffaf00;
+  --hud-primary-dim: #d78700;
+  --hud-primary-glow: rgba(255, 175, 0, 0.4);
+  --hud-secondary: #ffd7af;
+  --hud-accent: #ff0087;
+  --hud-text: #ffd7af;
+  --hud-text-dim: #8a7a60;
+  --hud-border: rgba(255, 175, 0, 0.25);
+  --hud-border-bright: rgba(255, 175, 0, 0.5);
+  --hud-success: #00afff;
+  --hud-warning: #ff8700;
+  --hud-error: #ff0087;
+  --hud-gradient-start: #d78700;
+  --hud-gradient-end: #ffaf00;
+}
+
+/* ── fsociety ───────────────────────────────────────────── */
+[data-theme="fsociety"] {
+  --hud-bg-deep: #000000;
+  --hud-bg-surface: #080808;
+  --hud-bg-panel: #101010;
+  --hud-bg-hover: #181818;
+  --hud-primary: #00ff00;
+  --hud-primary-dim: #008700;
+  --hud-primary-glow: rgba(0, 255, 0, 0.4);
+  --hud-secondary: #00ff00;
+  --hud-accent: #ffff00;
+  --hud-text: #c0c0c0;
+  --hud-text-dim: #505050;
+  --hud-border: rgba(0, 255, 0, 0.2);
+  --hud-border-bright: rgba(0, 255, 0, 0.45);
+  --hud-success: #00ff00;
+  --hud-warning: #ffff00;
+  --hud-error: #d70000;
+  --hud-gradient-start: #008700;
+  --hud-gradient-end: #00ff00;
+}
+
+/* ── Anime (Mewtwo) ─────────────────────────────────────── */
+[data-theme="anime"] {
+  --hud-bg-deep: #0d001a;
+  --hud-bg-surface: #150025;
+  --hud-bg-panel: #1a0030;
+  --hud-bg-hover: #220040;
+  --hud-primary: #af5fff;
+  --hud-primary-dim: #875fff;
+  --hud-primary-glow: rgba(175, 95, 255, 0.4);
+  --hud-secondary: #ff5fff;
+  --hud-accent: #ff79c6;
+  --hud-text: #e0d0f0;
+  --hud-text-dim: #7a6a9a;
+  --hud-border: rgba(175, 95, 255, 0.25);
+  --hud-border-bright: rgba(175, 95, 255, 0.5);
+  --hud-success: #50fa7b;
+  --hud-warning: #f1fa8c;
+  --hud-error: #ff5555;
+  --hud-gradient-start: #875fff;
+  --hud-gradient-end: #ff5fff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Base styles
+   ═══════════════════════════════════════════════════════════ */
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--hud-bg-deep);
+  color: var(--hud-text);
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--hud-border-bright);
+  border-radius: 0;
+}
+
+/* Selection */
+::selection {
+  background: var(--hud-primary);
+  color: var(--hud-bg-deep);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Panel system — the core visual language
+   ═══════════════════════════════════════════════════════════ */
+
+.hud-panel {
+  background: var(--hud-bg-surface);
+  border: 1px solid var(--hud-border);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease;
+}
+
+.hud-panel:hover {
+  border-color: var(--hud-border-bright);
+}
+
+.hud-panel-title {
+  position: absolute;
+  top: -1px;
+  left: 12px;
+  background: var(--hud-bg-surface);
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--hud-primary);
+  z-index: 1;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.hud-panel-content {
+  padding: 16px 12px 10px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Gradient text — per-character gradient like Rich
+   ═══════════════════════════════════════════════════════════ */
+
+.gradient-text {
+  background: linear-gradient(90deg, var(--hud-gradient-start), var(--hud-primary), var(--hud-gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effect on primary text */
+.glow {
+  text-shadow: 0 0 6px var(--hud-primary-glow), 0 0 12px var(--hud-primary-glow);
+  color: var(--hud-primary);
+}
+
+.glow-box {
+  box-shadow: 0 0 8px var(--hud-primary-glow), inset 0 0 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Sparklines & bars
+   ═══════════════════════════════════════════════════════════ */
+
+.capacity-bar {
+  height: 6px;
+  background: var(--hud-bg-hover);
+  position: relative;
+  overflow: hidden;
+}
+
+.capacity-bar-fill {
+  height: 100%;
+  transition: width 0.6s ease;
+}
+
+.capacity-bar-fill.ok { background: var(--hud-primary); }
+.capacity-bar-fill.warn { background: var(--hud-warning); }
+.capacity-bar-fill.critical { background: var(--hud-error); }
+
+/* ═══════════════════════════════════════════════════════════
+   Scanline overlay (toggleable)
+   ═══════════════════════════════════════════════════════════ */
+
+.scanlines::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Stat display
+   ═══════════════════════════════════════════════════════════ */
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--hud-primary);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+  margin-top: 2px;
+}
+
+.stat-delta {
+  font-size: 10px;
+  color: var(--hud-success);
+}
+
+.stat-delta.negative {
+  color: var(--hud-error);
+}
