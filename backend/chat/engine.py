@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import threading
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
+from backend.collectors.utils import default_hermes_dir
 from .models import (
     ChatSession,
     ComposerState,
@@ -20,10 +24,56 @@ from .streamer import ChatStreamer
 
 # Regex to match box-drawing decoration lines from hermes CLI output
 _BOX_DRAWING_RE = re.compile(r'^[\s\r]*[╭╮╰╯│─┌┐└┘├┤┬┴┼◉◈●▸▹▶▷■□▪▫]+[\s─╭╮╰╯│┌┐└┘├┤┬┴┼]*$')
-_SESSION_ID_RE = re.compile(r'^session_id:\s+\S+')
+_SESSION_ID_RE = re.compile(r'^session_id:\s+(\S+)')
 _HEADER_RE = re.compile(r'[╭╰][\s─]*[◉◈●]?\s*(MOTHER|HERMES|hermes)\s*[─╮╯]')
 # Hermes system warning lines (context compression, etc.) — not part of the model response
 _WARNING_RE = re.compile(r'^⚠')
+
+
+def _emit_tool_events(streamer: "ChatStreamer", hermes_session_id: str) -> None:
+    """Query state.db for tool calls and reasoning from the hermes session and emit SSE events."""
+    db_path = Path(default_hermes_dir()) / "state.db"
+    if not db_path.exists():
+        return
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """SELECT tool_calls, reasoning FROM messages
+                   WHERE session_id = ?
+                     AND (tool_calls IS NOT NULL OR (reasoning IS NOT NULL AND reasoning != ''))
+                   ORDER BY timestamp ASC""",
+                (hermes_session_id,),
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        return
+
+    seen_reasoning = False
+    for row in rows:
+        if row["reasoning"] and not seen_reasoning:
+            streamer.emit_reasoning(row["reasoning"])
+            seen_reasoning = True
+
+        if row["tool_calls"]:
+            try:
+                calls = json.loads(row["tool_calls"])
+                if not isinstance(calls, list):
+                    calls = [calls]
+                for call in calls:
+                    fn = call.get("function", {})
+                    tool_id = call.get("id") or call.get("call_id") or fn.get("name", "tool")
+                    name = fn.get("name", "unknown")
+                    try:
+                        args = json.loads(fn.get("arguments", "{}"))
+                    except Exception:
+                        args = {}
+                    streamer.emit_tool_start(tool_id, name, args)
+                    streamer.emit_tool_end(tool_id)
+            except Exception:
+                pass
 
 
 class ChatNotAvailableError(Exception):
@@ -163,19 +213,13 @@ class ChatEngine:
         cmd.extend(["--source", "tool"])
 
         def _is_decoration_line(line: str) -> bool:
-            """Check if a line is CLI decoration (box drawing, headers, session info, system warnings)."""
+            """Check if a line is CLI decoration (box drawing, headers)."""
             stripped = line.strip().replace('\r', '')
             if not stripped:
                 return False
-            if _SESSION_ID_RE.match(stripped):
-                return True
             if _HEADER_RE.search(stripped):
                 return True
             if _BOX_DRAWING_RE.match(stripped):
-                return True
-            # Hermes system warnings (context compression, etc.) — first line only
-            # Multi-line warning blocks are handled by in_warning_block state in run_subprocess
-            if _WARNING_RE.match(stripped):
                 return True
             return False
 
@@ -192,6 +236,7 @@ class ChatEngine:
                 # Stream stdout line by line, filtering decoration
                 started_content = False
                 in_warning_block = False
+                hermes_session_id = None
                 for line in iter(process.stdout.readline, b""):
                     if streamer._stopped.is_set():
                         break
@@ -209,7 +254,13 @@ class ChatEngine:
                             in_warning_block = False
                         continue
 
-                    # Skip single-line decoration (box drawing, headers, session id)
+                    # Capture session ID for post-completion tool event query
+                    m = _SESSION_ID_RE.match(stripped)
+                    if m:
+                        hermes_session_id = m.group(1)
+                        continue
+
+                    # Skip single-line decoration (box drawing, headers)
                     if _is_decoration_line(text):
                         continue
 
@@ -224,6 +275,10 @@ class ChatEngine:
                         streamer.emit_token(char)
 
                 process.wait()
+
+                # Emit tool calls and reasoning from state.db
+                if hermes_session_id and not streamer._stopped.is_set():
+                    _emit_tool_events(streamer, hermes_session_id)
 
                 # Check for errors
                 if process.returncode != 0:
