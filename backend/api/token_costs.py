@@ -1,5 +1,6 @@
 """Token cost endpoint — calculates estimated USD costs per model."""
 
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -14,100 +15,95 @@ router = APIRouter()
 # Source: https://www.anthropic.com/pricing (April 2026)
 # Source: https://openai.com/api/pricing/ (April 2026)
 
+# Shared pricing tiers (reused by aliases below)
+_SONNET = {"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75, "reasoning": 3.00}
+_GPT52 = {"input": 1.75, "output": 14.00, "cache_read": 0.88, "cache_write": 1.75, "reasoning": 1.75}
+_O_MINI = {"input": 1.10, "output": 4.40, "cache_read": 0.55, "cache_write": 1.10, "reasoning": 1.10}
+_DEEPSEEK_V3 = {"input": 0.27, "output": 1.10, "cache_read": 0.07, "cache_write": 0.27, "reasoning": 0.27}
+_GROK_FAST = {"input": 0.30, "output": 0.50, "cache_read": 0.075, "cache_write": 0.30, "reasoning": 0.30}
+_GEMINI_FLASH_OLD = {"input": 0.10, "output": 0.40, "cache_read": 0.025, "cache_write": 0.10, "reasoning": 0.10}
+_LLAMA = {"input": 0.10, "output": 0.10, "cache_read": 0.025, "cache_write": 0.10, "reasoning": 0.10}
+_FREE = {"input": 0.0, "output": 0.0, "cache_read": 0.0, "cache_write": 0.0, "reasoning": 0.0}
+
 MODEL_PRICING: dict[str, dict] = {
     # Anthropic
-    "claude-opus-4-6": {
-        "input": 15.00, "output": 75.00,
-        "cache_read": 1.50, "cache_write": 18.75,
-        "reasoning": 15.00,
-    },
-    "claude-sonnet-4-6": {
-        "input": 3.00, "output": 15.00,
-        "cache_read": 0.30, "cache_write": 3.75,
-        "reasoning": 3.00,
-    },
-    "claude-haiku-3-5": {
-        "input": 0.80, "output": 4.00,
-        "cache_read": 0.08, "cache_write": 1.00,
-        "reasoning": 0.80,
-    },
+    "claude-opus-4-6": {"input": 15.00, "output": 75.00, "cache_read": 1.50, "cache_write": 18.75, "reasoning": 15.00},
+    "claude-sonnet-4-6": _SONNET,
+    "claude-haiku-3-5": {"input": 0.80, "output": 4.00, "cache_read": 0.08, "cache_write": 1.00, "reasoning": 0.80},
+    "claude-4-sonnet": _SONNET,
+    "claude-3-7-sonnet": _SONNET,
+    "claude-3.7-sonnet": _SONNET,
     # OpenAI
-    "gpt-4o": {
-        "input": 2.50, "output": 10.00,
-        "cache_read": 1.25, "cache_write": 2.50,
-        "reasoning": 2.50,
-    },
-    "gpt-4o-mini": {
-        "input": 0.15, "output": 0.60,
-        "cache_read": 0.075, "cache_write": 0.15,
-        "reasoning": 0.15,
-    },
-    "o1": {
-        "input": 15.00, "output": 60.00,
-        "cache_read": 7.50, "cache_write": 15.00,
-        "reasoning": 15.00,
-    },
-    "o3-mini": {
-        "input": 1.10, "output": 4.40,
-        "cache_read": 0.55, "cache_write": 1.10,
-        "reasoning": 1.10,
-    },
+    "gpt-5.4-pro": {"input": 30.00, "output": 180.00, "cache_read": 15.00, "cache_write": 30.00, "reasoning": 30.00},
+    "gpt-5.4": {"input": 2.50, "output": 15.00, "cache_read": 1.25, "cache_write": 2.50, "reasoning": 2.50},
+    "gpt-5.2-codex": _GPT52,
+    "gpt-5.2": _GPT52,
+    "gpt-4o": {"input": 2.50, "output": 10.00, "cache_read": 1.25, "cache_write": 2.50, "reasoning": 2.50},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60, "cache_read": 0.075, "cache_write": 0.15, "reasoning": 0.15},
+    "gpt-4.1-mini": {"input": 0.40, "output": 1.60, "cache_read": 0.20, "cache_write": 0.40, "reasoning": 0.40},
+    "gpt-4.1": {"input": 2.00, "output": 8.00, "cache_read": 1.00, "cache_write": 2.00, "reasoning": 2.00},
+    "o4-mini": _O_MINI,
+    "o3-mini": _O_MINI,
+    "o1": {"input": 15.00, "output": 60.00, "cache_read": 7.50, "cache_write": 15.00, "reasoning": 15.00},
     # DeepSeek
-    "deepseek-v3": {
-        "input": 0.27, "output": 1.10,
-        "cache_read": 0.07, "cache_write": 0.27,
-        "reasoning": 0.27,
-    },
-    "deepseek-r1": {
-        "input": 0.55, "output": 2.19,
-        "cache_read": 0.14, "cache_write": 0.55,
-        "reasoning": 0.55,
-    },
+    "deepseek-v3": _DEEPSEEK_V3,
+    "deepseek-chat": _DEEPSEEK_V3,
+    "deepseek-r1": {"input": 0.55, "output": 2.19, "cache_read": 0.14, "cache_write": 0.55, "reasoning": 0.55},
     # xAI
-    "grok-3": {
-        "input": 3.00, "output": 15.00,
-        "cache_read": 0.75, "cache_write": 3.00,
-        "reasoning": 3.00,
-    },
-    "grok-3-mini-fast": {
-        "input": 0.30, "output": 0.50,
-        "cache_read": 0.075, "cache_write": 0.30,
-        "reasoning": 0.30,
-    },
+    "grok-4": {"input": 2.00, "output": 6.00, "cache_read": 0.50, "cache_write": 2.00, "reasoning": 2.00},
+    "grok-3": {"input": 3.00, "output": 15.00, "cache_read": 0.75, "cache_write": 3.00, "reasoning": 3.00},
+    "grok-code-fast": _GROK_FAST,
+    "grok-3-mini-fast": _GROK_FAST,
     # Google
-    "gemini-2.5-pro": {
-        "input": 1.25, "output": 10.00,
-        "cache_read": 0.31, "cache_write": 4.50,
-        "reasoning": 1.25,
-    },
-    # Local / free — zero cost
-    "local": {
-        "input": 0.0, "output": 0.0,
-        "cache_read": 0.0, "cache_write": 0.0,
-        "reasoning": 0.0,
-    },
+    "gemini-3.1-pro": {"input": 2.00, "output": 12.00, "cache_read": 0.50, "cache_write": 2.00, "reasoning": 2.00},
+    "gemini-3-flash": {"input": 0.50, "output": 3.00, "cache_read": 0.13, "cache_write": 0.50, "reasoning": 0.50},
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.00, "cache_read": 0.31, "cache_write": 4.50, "reasoning": 1.25},
+    "gemini-2.5-flash": {"input": 0.15, "output": 0.60, "cache_read": 0.04, "cache_write": 0.15, "reasoning": 0.15},
+    "gemini-2.0-flash": _GEMINI_FLASH_OLD,
+    "gemini-flash": _GEMINI_FLASH_OLD,
+    # Xiaomi
+    "mimo-v2-pro": {"input": 1.00, "output": 3.00, "cache_read": 0.20, "cache_write": 1.00, "reasoning": 1.00},
+    # MiniMax
+    "minimax-m2.5": {"input": 0.12, "output": 0.99, "cache_read": 0.06, "cache_write": 0.12, "reasoning": 0.12},
+    # Meta
+    "llama-3.3-70b": _LLAMA,
+    "llama-4": _LLAMA,
+    # Qwen
+    "qwen3-coder": {"input": 0.15, "output": 0.80, "cache_read": 0.04, "cache_write": 0.15, "reasoning": 0.15},
+    "qwen-3.5-plus": {"input": 0.26, "output": 1.56, "cache_read": 0.065, "cache_write": 0.26, "reasoning": 0.26},
+    "qwen-3.5-flash": {"input": 0.065, "output": 0.26, "cache_read": 0.016, "cache_write": 0.065, "reasoning": 0.065},
+    # Mistral
+    "mistral-small": {"input": 0.15, "output": 0.60, "cache_read": 0.04, "cache_write": 0.15, "reasoning": 0.15},
+    "devstral": {"input": 0.40, "output": 2.00, "cache_read": 0.10, "cache_write": 0.40, "reasoning": 0.40},
+    # Local / free
+    "local": _FREE,
 }
 
-DEFAULT_PRICING = MODEL_PRICING["claude-opus-4-6"]
+# Precomputed for _get_pricing (avoid sorting on every call)
+DEFAULT_PRICING = _FREE
+_SORTED_KEYS = sorted(MODEL_PRICING, key=len, reverse=True)
+_SMALL_MODEL_RE = re.compile(r'[-_](?:1\.?[58]b|3b|4b|7b|8b|9b|13b|14b)\b')
 
 
 def _get_pricing(model: str | None) -> tuple[dict, str]:
     """Return (pricing_dict, matched_key) for a model."""
     if not model:
-        return DEFAULT_PRICING, "default (claude-opus-4-6)"
+        return DEFAULT_PRICING, "unpriced (unknown)"
     # Exact match
     if model in MODEL_PRICING:
         return MODEL_PRICING[model], model
-    # Partial match (strip provider prefix)
+    # Partial match (strip provider prefix, try longest key first)
     base = model.split("/")[-1] if "/" in model else model
-    for key, pricing in MODEL_PRICING.items():
+    for key in _SORTED_KEYS:
         if base.startswith(key):
-            return pricing, key
-    # Check if it's a local/inference model (zero cost)
+            return MODEL_PRICING[key], key
+    # Check if it's a local/inference/free model (zero cost)
     lower = model.lower()
-    if any(kw in lower for kw in ("local", "localhost", "free", "9b", "7b", "13b", "4b", "3b")):
-        return MODEL_PRICING["local"], "local (free)"
-    return DEFAULT_PRICING, f"default ({model})"
+    if any(kw in lower for kw in ("local", "localhost", ":free", "gemma", "nemotron")):
+        return _FREE, "local (free)"
+    if _SMALL_MODEL_RE.search(lower):
+        return _FREE, "local (free)"
+    return DEFAULT_PRICING, f"unpriced ({model})"
 
 
 def _calc_cost(tokens: dict, pricing: dict) -> float:
