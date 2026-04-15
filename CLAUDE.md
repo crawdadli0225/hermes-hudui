@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Hermes HUD Web UI — a browser-based dashboard for monitoring the Hermes AI agent. It reads agent data from `~/.hermes/` and displays identity, memory, skills, sessions, cron jobs, projects, costs, activity patterns, corrections, and live chat across 13 tabs.
+Hermes HUD Web UI — a browser-based dashboard for monitoring the Hermes AI agent. It reads agent data from `~/.hermes/` and displays identity, memory, skills, sessions, cron jobs, projects, costs, activity patterns, corrections, sudo governance, and live chat across 14 tabs.
 
 ## Commands
 
@@ -60,7 +60,7 @@ FastAPI Backend (Python)
 ### Backend (`backend/`)
 
 - **`main.py`** — FastAPI app + CLI entry point. Sets `HERMES_HOME`, starts Uvicorn.
-- **`collectors/`** — One module per data domain (memory, skills, sessions, cron, projects, patterns). Each reads `~/.hermes/` and returns dataclasses from `models.py`.
+- **`collectors/`** — One module per data domain (memory, skills, sessions, cron, projects, patterns, sudo). Each reads `~/.hermes/` and returns dataclasses from `models.py`.
 - **`models.py`** — All dataclasses (`HUDState`, `MemoryState`, `SkillsState`, etc.). `@property` fields are included in serialization.
 - **`serialize.py`** — `to_dict()` recursively converts dataclasses to JSON-safe dicts.
 - **`routes/`** — FastAPI route handlers that call collectors and return serialized data.
@@ -97,3 +97,7 @@ FastAPI Backend (Python)
 **Version strings:** Must stay in sync across `pyproject.toml`, `App.tsx` status bar, `BootScreen.tsx`, and `CHANGELOG.md`.
 
 **Token costs:** Hardcoded `MODEL_PRICING` in `backend/api/token_costs.py`. Falls back to Claude Opus pricing for unknown models.
+
+**Sudo collector:** `backend/collectors/sudo.py` mines `state.db` tool-output messages via FTS for sudo command executions, parses `config.yaml` for approval/security settings, and tails `logs/gateway.log` for explicitly approved commands. Outcome classification: `exit_code=-1` + "approval" in error = blocked; password error in output = failed; `exit_code=0` = success.
+
+**Shared YAML loader:** `backend/collectors/utils.py` exports `load_yaml(text)` — tries `yaml.safe_load`, falls back to a minimal line parser. Used by `config.py` and `sudo.py`.

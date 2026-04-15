@@ -2,6 +2,13 @@
 
 All notable changes to hermes-hudui are documented here.
 
+## [Unreleased]
+
+### Added
+- **Sudo tab** — surfaces sudo governance and command history from existing data. Shows approval mode, timeout, command allowlist, and security settings (from `config.yaml`); usage statistics broken down by approved/failed/blocked with a daily sparkline and subcommand type breakdown; scrollable command history extracted from `state.db` tool-output messages via FTS. Closes #14.
+
+---
+
 ## [0.4.0] — 2026-04-14
 
 ### Added
