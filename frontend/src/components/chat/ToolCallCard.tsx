@@ -1,15 +1,29 @@
 import { useState } from 'react'
-import type { ToolCall } from '../../hooks/useChat'
+import type { DynamicToolUIPart, ToolUIPart, UITools } from 'ai'
+import { isStaticToolUIPart } from 'ai'
+
+type AnyToolPart = DynamicToolUIPart | ToolUIPart<UITools>
 
 interface ToolCallCardProps {
-  tool: ToolCall
+  part: AnyToolPart
 }
 
-export default function ToolCallCard({ tool }: ToolCallCardProps) {
+export default function ToolCallCard({ part }: ToolCallCardProps) {
   const [expanded, setExpanded] = useState(false)
 
-  const isRunning = tool.status === 'running'
-  const isError = tool.status === 'error'
+  const toolName = isStaticToolUIPart(part)
+    ? String(part.type).replace(/^tool-/, '')
+    : part.toolName
+  const toolCallId = part.toolCallId
+  const state = part.state
+
+  const isRunning = state === 'input-streaming' || state === 'input-available'
+  const isError = state === 'output-error'
+  const isDone = state === 'output-available'
+
+  const input = 'input' in part ? part.input : undefined
+  const output = isDone && 'output' in part ? (part as DynamicToolUIPart & { state: 'output-available' }).output : undefined
+  const errorText = isError && 'errorText' in part ? (part as DynamicToolUIPart & { state: 'output-error' }).errorText : undefined
 
   return (
     <div
@@ -33,7 +47,7 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           >
             {isRunning ? '▸' : isError ? '✗' : '✓'}
           </span>
-          <span className="font-bold">{tool.name}</span>
+          <span className="font-bold">{toolName}</span>
           {isRunning && (
             <span className="animate-pulse" style={{ color: 'var(--hud-warning)' }}>
               running...
@@ -46,33 +60,11 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
       {/* Expanded content */}
       {expanded && (
         <div className="px-2 pb-2 space-y-2">
-          {/* Arguments */}
-          <div>
-            <div style={{ color: 'var(--hud-text-dim)' }} className="mb-0.5">
-              arguments:
-            </div>
-            <pre
-              className="p-1.5 overflow-x-auto text-[11px]"
-              style={{
-                background: 'var(--hud-bg-hover)',
-                color: 'var(--hud-text)',
-                fontFamily: 'monospace',
-              }}
-            >
-              {JSON.stringify(tool.arguments, null, 2)}
-            </pre>
-          </div>
-
-          {/* Result or Error */}
-          {(tool.result || tool.error) && (
+          {/* Arguments / Input */}
+          {input !== undefined && (
             <div>
-              <div
-                style={{
-                  color: tool.error ? 'var(--hud-error)' : 'var(--hud-success)',
-                }}
-                className="mb-0.5"
-              >
-                {tool.error ? 'error:' : 'result:'}
+              <div style={{ color: 'var(--hud-text-dim)' }} className="mb-0.5">
+                arguments:
               </div>
               <pre
                 className="p-1.5 overflow-x-auto text-[11px]"
@@ -82,7 +74,38 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
                   fontFamily: 'monospace',
                 }}
               >
-                {tool.error || JSON.stringify(tool.result, null, 2)}
+                {JSON.stringify(input, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {/* Tool call ID */}
+          {toolCallId && (
+            <div style={{ color: 'var(--hud-text-dim)', fontSize: '10px' }}>
+              id: {toolCallId}
+            </div>
+          )}
+
+          {/* Result or Error */}
+          {(output !== undefined || errorText) && (
+            <div>
+              <div
+                style={{
+                  color: errorText ? 'var(--hud-error)' : 'var(--hud-success)',
+                }}
+                className="mb-0.5"
+              >
+                {errorText ? 'error:' : 'result:'}
+              </div>
+              <pre
+                className="p-1.5 overflow-x-auto text-[11px]"
+                style={{
+                  background: 'var(--hud-bg-hover)',
+                  color: 'var(--hud-text)',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {errorText ?? JSON.stringify(output, null, 2)}
               </pre>
             </div>
           )}

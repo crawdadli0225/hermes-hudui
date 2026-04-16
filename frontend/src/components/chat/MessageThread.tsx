@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react'
-import type { ChatMessage } from '../../hooks/useChat'
+import type { UIMessage } from 'ai'
+import { isTextUIPart, isReasoningUIPart, isToolUIPart } from 'ai'
 import MessageBubble from './MessageBubble'
 import ToolCallCard from './ToolCallCard'
 import ReasoningBlock from './ReasoningBlock'
 
 interface MessageThreadProps {
-  messages: ChatMessage[]
+  messages: UIMessage[]
+  isStreaming: boolean
 }
 
-export default function MessageThread({ messages }: MessageThreadProps) {
+export default function MessageThread({ messages, isStreaming }: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom on new messages
@@ -26,30 +28,34 @@ export default function MessageThread({ messages }: MessageThreadProps) {
           </div>
         </div>
       ) : (
-        messages.map((message) => (
-          <div key={message.id}>
-            {/* Reasoning block (if assistant message has reasoning) */}
-            {message.role === 'assistant' && message.reasoning && (
-              <ReasoningBlock content={message.reasoning} />
-            )}
+        messages.map((message, msgIndex) => {
+          const isLastMessage = msgIndex === messages.length - 1
+          const isStreamingThis = isStreaming && isLastMessage && message.role === 'assistant'
 
-            {/* Tool calls (if any) */}
-            {message.toolCalls && message.toolCalls.length > 0 && (
-              <div className="my-1">
-                {message.toolCalls.map((tool) => (
-                  <ToolCallCard key={tool.id} tool={tool} />
-                ))}
-              </div>
-            )}
-
-            {/* Main message bubble */}
-            <MessageBubble
-              role={message.role}
-              content={message.content}
-              isStreaming={message.isStreaming}
-            />
-          </div>
-        ))
+          return (
+            <div key={message.id}>
+              {message.parts.map((part, partIndex) => {
+                if (isReasoningUIPart(part)) {
+                  return <ReasoningBlock key={partIndex} content={part.text} />
+                }
+                if (isToolUIPart(part)) {
+                  return <ToolCallCard key={partIndex} part={part} />
+                }
+                if (isTextUIPart(part) && part.text) {
+                  return (
+                    <MessageBubble
+                      key={partIndex}
+                      role={message.role as 'user' | 'assistant'}
+                      content={part.text}
+                      isStreaming={isStreamingThis && part.state === 'streaming'}
+                    />
+                  )
+                }
+                return null
+              })}
+            </div>
+          )
+        })
       )}
       <div ref={bottomRef} />
     </div>

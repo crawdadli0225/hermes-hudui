@@ -31,6 +31,11 @@ class SendMessageRequest(BaseModel):
     lang: str | None = None
 
 
+class AISDKSendRequest(BaseModel):
+    messages: list[dict]
+    lang: str | None = None
+
+
 class SessionResponse(BaseModel):
     id: str
     profile: str | None
@@ -135,6 +140,63 @@ async def send_message(session_id: str, request: SendMessageRequest) -> dict[str
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sessions/{session_id}/message")
+async def send_and_stream(
+    session_id: str, request: AISDKSendRequest
+) -> StreamingResponse:
+    """Send a message and stream the response — AI SDK Data Stream Protocol v1."""
+    session = chat_engine.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not session.is_active:
+        raise HTTPException(status_code=409, detail="Session is inactive")
+
+    # Extract text content from the last user message's parts
+    last = request.messages[-1] if request.messages else None
+    if not last or last.get("role") != "user":
+        raise HTTPException(status_code=400, detail="Last message must be from user")
+
+    content = "".join(
+        p.get("text", "") for p in last.get("parts", []) if p.get("type") == "text"
+    )
+    if not content:
+        content = str(last.get("content", ""))
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="Message content is empty")
+
+    if request.lang and request.lang != "en":
+        lang_names = {
+            "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
+            "es": "Spanish", "fr": "French", "de": "German",
+        }
+        lang_name = lang_names.get(request.lang, request.lang)
+        content = f"[Respond in {lang_name}] {content}"
+
+    try:
+        streamer = chat_engine.send_message(session_id, content)
+    except ChatNotAvailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    def event_generator():
+        yield 'data: {"type":"start"}\n\n'
+        for event in streamer.iter_events():
+            yield streamer.to_sse(event)
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "x-vercel-ai-ui-message-stream": "v1",
+        },
+    )
 
 
 @router.get("/sessions/{session_id}/stream")

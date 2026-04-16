@@ -1,4 +1,4 @@
-"""SSE streaming handler for chat responses."""
+"""SSE streaming handler — AI SDK Data Stream Protocol v1."""
 
 from __future__ import annotations
 
@@ -21,27 +21,40 @@ class ChatStreamer:
         self._stopped = threading.Event()
         self._current_message: str = ""
         self._current_tools: dict[str, ToolCall] = {}
+        self._text_started: bool = False
 
     def emit(self, event: StreamingEvent) -> None:
         """Queue an event for streaming."""
         if not self._stopped.is_set():
             self._queue.put(event)
 
+    def _close_text_block(self) -> None:
+        """Emit text-end if a text block is currently open."""
+        if self._text_started:
+            self._text_started = False
+            self.emit(StreamingEvent(type="text-end", data={"id": "t0"}))
+
     def emit_token(self, token: str) -> None:
         """Emit a text token."""
         self._current_message += token
-        self.emit(StreamingEvent(type="token", data={"text": token}))
+        if not self._text_started:
+            self._text_started = True
+            self.emit(StreamingEvent(type="text-start", data={"id": "t0"}))
+        self.emit(StreamingEvent(type="text-delta", data={"id": "t0", "delta": token}))
 
     def emit_tool_start(self, tool_id: str, name: str, arguments: dict) -> None:
         """Emit tool call start."""
+        self._close_text_block()
         tool = ToolCall(id=tool_id, name=name, arguments=arguments)
         self._current_tools[tool_id] = tool
-        self.emit(
-            StreamingEvent(
-                type="tool_start",
-                data={"id": tool_id, "name": name, "arguments": arguments},
-            )
-        )
+        self.emit(StreamingEvent(
+            type="tool-input-start",
+            data={"toolCallId": tool_id, "toolName": name},
+        ))
+        self.emit(StreamingEvent(
+            type="tool-input-available",
+            data={"toolCallId": tool_id, "toolName": name, "input": arguments},
+        ))
 
     def emit_tool_end(
         self, tool_id: str, result: Any = None, error: str | None = None
@@ -52,25 +65,29 @@ class ChatStreamer:
             tool.status = ToolStatus.ERROR if error else ToolStatus.COMPLETE
             tool.result = result
             tool.error = error
-
-        self.emit(
-            StreamingEvent(
-                type="tool_end", data={"id": tool_id, "result": result, "error": error}
-            )
-        )
+        output = {"error": error} if error else result
+        self.emit(StreamingEvent(
+            type="tool-output-available",
+            data={"toolCallId": tool_id, "output": output},
+        ))
 
     def emit_reasoning(self, content: str) -> None:
         """Emit reasoning/thinking content."""
-        self.emit(StreamingEvent(type="reasoning", data={"content": content}))
+        self._close_text_block()
+        self.emit(StreamingEvent(type="reasoning-start", data={"id": "r0"}))
+        self.emit(StreamingEvent(type="reasoning-delta", data={"id": "r0", "delta": content}))
+        self.emit(StreamingEvent(type="reasoning-end", data={"id": "r0"}))
 
     def emit_done(self) -> None:
         """Signal completion."""
-        self.emit(StreamingEvent(type="done", data={}))
+        self._close_text_block()
+        self.emit(StreamingEvent(type="finish", data={"finishReason": "stop"}))
         self._queue.put(None)  # Sentinel to stop iteration
 
     def emit_error(self, error: str) -> None:
         """Emit error event."""
-        self.emit(StreamingEvent(type="error", data={"message": error}))
+        self._close_text_block()
+        self.emit(StreamingEvent(type="error", data={"errorText": error}))
         self._queue.put(None)
 
     def stop(self) -> None:
@@ -92,7 +109,8 @@ class ChatStreamer:
             yield event
 
     def to_sse(self, event: StreamingEvent) -> str:
-        """Convert event to SSE format."""
+        """Convert event to AI SDK Data Stream Protocol v1 SSE format."""
         if event.type == "heartbeat":
             return ": heartbeat\n\n"
-        return f"data: {json.dumps({'type': event.type, 'data': event.data})}\n\n"
+        payload = {"type": event.type, **event.data}
+        return f"data: {json.dumps(payload)}\n\n"

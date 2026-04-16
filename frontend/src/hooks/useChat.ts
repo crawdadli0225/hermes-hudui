@@ -1,26 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useChat as useAiChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
+import type { UIMessage } from 'ai'
 import { useI18n } from '../i18n'
 
-export interface ToolCall {
-  id: string
-  name: string
-  arguments: Record<string, unknown>
-  status: 'running' | 'complete' | 'error'
-  result?: unknown
-  error?: string
-}
-
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system' | 'tool'
-  content: string
-  toolCalls?: ToolCall[]
-  reasoning?: string
-  timestamp: Date
-  isStreaming?: boolean
-}
-
 // ── Types ─────────────────────────────────────────────────────────────────
+
+export type { UIMessage }
 
 export interface SessionSummary {
   id: string
@@ -29,24 +15,31 @@ export interface SessionSummary {
   is_active: boolean
 }
 
+export interface ComposerState {
+  model: string
+  isStreaming: boolean
+  contextTokens: number
+}
+
 // ── localStorage helpers ───────────────────────────────────────────────────
 
 const MESSAGES_KEY = (id: string) => `hud-chat-msgs-${id}`
 const SESSIONS_KEY = 'hud-chat-sessions'
 
-export function saveMessages(sessionId: string, msgs: ChatMessage[]) {
+export function saveMessages(sessionId: string, msgs: UIMessage[]) {
   try {
-    const serializable = msgs.map(m => ({ ...m, isStreaming: false }))
-    localStorage.setItem(MESSAGES_KEY(sessionId), JSON.stringify(serializable))
+    localStorage.setItem(MESSAGES_KEY(sessionId), JSON.stringify(msgs))
   } catch { /* quota exceeded — silently skip */ }
 }
 
-export function loadMessages(sessionId: string): ChatMessage[] {
+export function loadMessages(sessionId: string): UIMessage[] {
   try {
     const raw = localStorage.getItem(MESSAGES_KEY(sessionId))
     if (!raw) return []
-    const parsed = JSON.parse(raw) as ChatMessage[]
-    return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
+    const parsed = JSON.parse(raw) as UIMessage[]
+    // Guard against old format (ChatMessage had content not parts)
+    if (!Array.isArray(parsed) || (parsed.length > 0 && !parsed[0].parts)) return []
+    return parsed
   } catch { return [] }
 }
 
@@ -71,303 +64,72 @@ export function clearSessionStorage(sessionId: string) {
   removeMessages(sessionId)
 }
 
-export interface ComposerState {
-  model: string
-  isStreaming: boolean
-  contextTokens: number
-}
-
-interface StreamingEvent {
-  type: string
-  data: Record<string, unknown>
-}
+// ── useChat ────────────────────────────────────────────────────────────────
 
 export function useChat(sessionId: string | null) {
   const { lang } = useI18n()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [isStreaming, setIsStreaming] = useState(false)
+
+  // Refs stay current inside the transport without causing re-renders
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+  const langRef = useRef(lang)
+  langRef.current = lang
+
+  // In-memory session message cache for fast switching
+  const messageCacheRef = useRef<Map<string, UIMessage[]>>(new Map())
+  const prevSessionIdRef = useRef<string | null>(null)
+
+  // Transport created once — injects session ID and lang per request
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: '/api/chat/placeholder', // overridden by prepareSendMessagesRequest
+        prepareSendMessagesRequest({ messages, body, id, trigger, messageId }) {
+          const sid = sessionIdRef.current ?? ''
+          return {
+            api: `/api/chat/sessions/${sid}/message`,
+            body: { id, messages, trigger, messageId, ...body, lang: langRef.current },
+          }
+        },
+      }),
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  const { messages, status, error, sendMessage, stop, setMessages } = useAiChat({
+    transport,
+    experimental_throttle: 50,
+    onFinish: ({ messages: finishedMessages }) => {
+      const sid = sessionIdRef.current
+      if (sid) saveMessages(sid, finishedMessages)
+    },
+  })
+
+  // Handle session switching: save outgoing, restore incoming
+  useEffect(() => {
+    const prevId = prevSessionIdRef.current
+    if (prevId && prevId !== sessionId) {
+      messageCacheRef.current.set(prevId, messages)
+    }
+    if (sessionId) {
+      setMessages(messageCacheRef.current.get(sessionId) ?? loadMessages(sessionId))
+    } else {
+      setMessages([])
+    }
+    prevSessionIdRef.current = sessionId
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Composer state (model name / streaming flag from backend)
   const [composerState, setComposerState] = useState<ComposerState>({
     model: 'unknown',
     isStreaming: false,
     contextTokens: 0,
   })
-  const [error, setError] = useState<string | null>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
-  const currentAssistantMessageRef = useRef<string>('')
-  const currentToolCallsRef = useRef<Record<string, ToolCall>>({})
-  const rafRef = useRef<number | null>(null)
-  // Client-side message cache: sessionId → messages
-  const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map())
-  const prevSessionIdRef = useRef<string | null>(null)
-
-  // On session switch: save previous session's messages, restore new session's
-  useEffect(() => {
-    const prevId = prevSessionIdRef.current
-
-    // Save messages for the outgoing session
-    if (prevId && prevId !== sessionId) {
-      messageCacheRef.current.set(prevId, messages)
-    }
-
-    // Close any open stream
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-
-    // Reset transient state
-    setIsStreaming(false)
-    setError(null)
-    currentAssistantMessageRef.current = ''
-    currentToolCallsRef.current = {}
-
-    // Restore cached messages for the incoming session (memory → localStorage → empty)
-    if (sessionId) {
-      const cached = messageCacheRef.current.get(sessionId)
-      setMessages(cached ?? loadMessages(sessionId))
-    } else {
-      setMessages([])
-    }
-
-    prevSessionIdRef.current = sessionId
-  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep in-memory cache in sync on every update; debounce localStorage writes
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    if (sessionId) {
-      messageCacheRef.current.set(sessionId, messages)
-      if (messages.length > 0) {
-        // Debounce localStorage writes to avoid thrashing during streaming
-        if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-        saveTimerRef.current = setTimeout(() => saveMessages(sessionId, messages), 1000)
-      }
-    }
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [sessionId, messages])
-
-  // Cleanup EventSource on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
-    }
-  }, [])
-
-  const sendMessage = useCallback(async (content: string) => {
-    if (!sessionId) {
-      setError('No active session')
-      return
-    }
-
-    const flushRaf = () => {
-      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-    }
-
-    setError(null)
-    setIsStreaming(true)
-    currentAssistantMessageRef.current = ''
-    currentToolCallsRef.current = {}
-
-    // Add user message immediately
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content,
-      timestamp: new Date(),
-    }
-    setMessages(prev => [...prev, userMessage])
-
-    // Create placeholder assistant message
-    const assistantMessageId = `assistant-${Date.now()}`
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      isStreaming: true,
-      toolCalls: [],
-    }
-    setMessages(prev => [...prev, assistantMessage])
-
-    try {
-      // First POST to send the message
-      const response = await fetch(`/api/chat/sessions/${sessionId}/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, lang }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Failed to send message')
-      }
-
-      // Then open SSE stream
-      const eventSource = new EventSource(`/api/chat/sessions/${sessionId}/stream`)
-      eventSourceRef.current = eventSource
-
-      eventSource.onmessage = (event) => {
-        const data: StreamingEvent = JSON.parse(event.data)
-
-        switch (data.type) {
-          case 'token':
-            currentAssistantMessageRef.current += (data.data.text as string) || ''
-            if (!rafRef.current) {
-              rafRef.current = requestAnimationFrame(() => {
-                rafRef.current = null
-                setMessages(prev =>
-                  prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? { ...msg, content: currentAssistantMessageRef.current }
-                      : msg
-                  )
-                )
-              })
-            }
-            break
-
-          case 'tool_start':
-            const toolId = data.data.id as string
-            const toolName = data.data.name as string
-            const toolArgs = data.data.arguments as Record<string, unknown>
-            currentToolCallsRef.current[toolId] = {
-              id: toolId,
-              name: toolName,
-              arguments: toolArgs,
-              status: 'running',
-            }
-            updateAssistantToolCalls(assistantMessageId)
-            break
-
-          case 'tool_end':
-            const endToolId = data.data.id as string
-            const toolResult = data.data.result
-            const toolError = data.data.error as string | undefined
-            if (currentToolCallsRef.current[endToolId]) {
-              currentToolCallsRef.current[endToolId].status = toolError ? 'error' : 'complete'
-              currentToolCallsRef.current[endToolId].result = toolResult
-              currentToolCallsRef.current[endToolId].error = toolError
-            }
-            updateAssistantToolCalls(assistantMessageId)
-            break
-
-          case 'reasoning':
-            const reasoningContent = data.data.content as string
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessageId
-                  ? { ...msg, reasoning: reasoningContent }
-                  : msg
-              )
-            )
-            break
-
-          case 'info':
-            // TMUX mode info message
-            console.log('Chat info:', data.data.message)
-            break
-
-          case 'done':
-            flushRaf()
-            setIsStreaming(false)
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessageId
-                  ? { ...msg, isStreaming: false, content: currentAssistantMessageRef.current }
-                  : msg
-              )
-            )
-            eventSource.close()
-            break
-
-          case 'error':
-            flushRaf()
-            setError(data.data.message as string)
-            setIsStreaming(false)
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessageId
-                  ? { ...msg, isStreaming: false, content: msg.content || 'Error: ' + data.data.message }
-                  : msg
-              )
-            )
-            eventSource.close()
-            break
-        }
-      }
-
-      eventSource.onerror = () => {
-        flushRaf()
-        setIsStreaming(false)
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === assistantMessageId
-              ? { ...msg, isStreaming: false, content: msg.content || '[connection lost]' }
-              : msg
-          )
-        )
-        eventSource.close()
-      }
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setIsStreaming(false)
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === assistantMessageId
-            ? { ...msg, isStreaming: false, content: msg.content || 'Error sending message' }
-            : msg
-        )
-      )
-    }
-  }, [sessionId])
-
-  const updateAssistantToolCalls = (assistantMessageId: string) => {
-    const toolCalls = Object.values(currentToolCallsRef.current)
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === assistantMessageId
-          ? { ...msg, toolCalls }
-          : msg
-      )
-    )
-  }
-
-  const cancelStream = useCallback(async () => {
-    if (!sessionId) return
-
-    // Close the SSE connection immediately
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-
-    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-    setIsStreaming(false)
-    // Mark the last assistant message as no longer streaming
-    setMessages(prev =>
-      prev.map((msg, i) =>
-        i === prev.length - 1 && msg.role === 'assistant' && msg.isStreaming
-          ? { ...msg, isStreaming: false, content: msg.content || '[cancelled]' }
-          : msg
-      )
-    )
-
-    // Tell the backend to kill the subprocess
-    try {
-      await fetch(`/api/chat/sessions/${sessionId}/cancel`, { method: 'POST' })
-    } catch {
-      // Best-effort — SSE already closed on frontend
-    }
-  }, [sessionId])
 
   const loadComposerState = useCallback(async () => {
-    if (!sessionId) return
-
+    const sid = sessionIdRef.current
+    if (!sid) return
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}/composer`)
+      const response = await fetch(`/api/chat/sessions/${sid}/composer`)
       if (response.ok) {
         const state = await response.json()
         setComposerState({
@@ -376,21 +138,31 @@ export function useChat(sessionId: string | null) {
           contextTokens: state.context_tokens,
         })
       }
-    } catch (err) {
-      console.error('Failed to load composer state:', err)
+    } catch { /* best effort */ }
+  }, [])
+
+  const cancelStream = useCallback(async () => {
+    stop()
+    const sid = sessionIdRef.current
+    if (sid) {
+      try {
+        await fetch(`/api/chat/sessions/${sid}/cancel`, { method: 'POST' })
+      } catch { /* best effort */ }
     }
-  }, [sessionId])
+  }, [stop])
 
   return {
     messages,
-    isStreaming,
+    isStreaming: status === 'streaming' || status === 'submitted',
     composerState,
-    error,
-    sendMessage,
+    error: error?.message ?? null,
+    sendMessage: (content: string) => sendMessage({ text: content }),
     cancelStream,
     loadComposerState,
   }
 }
+
+// ── useChatAvailability ────────────────────────────────────────────────────
 
 export function useChatAvailability() {
   const [availability, setAvailability] = useState({
@@ -426,6 +198,8 @@ export function useChatAvailability() {
 
   return { ...availability, loading }
 }
+
+// ── useChatSessions ────────────────────────────────────────────────────────
 
 export function useChatSessions() {
   const [sessions, setSessions] = useState<SessionSummary[]>(() => loadSavedSessions())

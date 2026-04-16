@@ -153,7 +153,7 @@ export default function ChatPanel() {
         <div className="flex-1 flex flex-col min-w-0">
           {activeSessionId ? (
             <>
-              <MessageThread messages={messages} />
+              <MessageThread messages={messages} isStreaming={isStreaming} />
               <Composer
                 onSend={handleSendMessage}
                 onCancel={cancelStream}
