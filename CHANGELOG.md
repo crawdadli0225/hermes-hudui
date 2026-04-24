@@ -6,6 +6,14 @@ All notable changes to hermes-hudui are documented here.
 
 ---
 
+## [0.5.1] — 2026-04-24
+
+### Fixed
+- **High CPU from file watcher** — watchfiles polled every 300ms over the entire `~/.hermes/` tree, which pegged a core when `state.db` is large and actively written by a running agent. Bumped `poll_delay_ms` to 2000ms (aligned with the 5s broadcast throttle) and excluded `state.db` / `state.db-wal` / `state.db-shm` / `state.db-journal` via a dedicated filter. `force_polling=True` is retained so NFS / WSL1 / VM / Docker-bind-mount setups keep working. Thanks to @louie0609c for the root-cause analysis. Closes #22.
+- **Broken `install.sh` version print** — replaced the invalid `node -version` with `node --version` (thanks @CrayonL).
+
+---
+
 ## [0.5.0] — 2026-04-17
 
 ### Added
