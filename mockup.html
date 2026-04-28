@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes HUDUI - Vast Monitor Mockup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0a0a0c; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .hud-panel { background: rgba(23, 23, 26, 0.8); border: 1px solid #3f3f46; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .glow-green { box-shadow: 0 0 10px rgba(34, 197, 94, 0.3); border-color: #22c55e; }
+        .glow-red { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); border-color: #ef4444; }
+        .progress-step { width: 20px; height: 20px; border-radius: 50%; background: #3f3f46; position: relative; z-index: 10; }
+        .progress-step.active { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+        .progress-line { height: 2px; background: #3f3f46; position: absolute; top: 10px; left: 0; right: 0; z-index: 1; }
+        .terminal-window { background: #000; font-family: 'Fira Code', monospace; color: #4ade80; border: 1px solid #27272a; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold tracking-tighter text-white flex items-center gap-3">
+                <span class="text-blue-500">⚡</span> Vast Monitor <span class="text-sm font-normal px-2 py-1 bg-zinc-800 rounded text-zinc-400">v0.1-alpha</span>
+            </h1>
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-zinc-500">Server: 61.71.33.195:54647</span>
+                <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-green-900/30 text-green-400 text-xs font-medium border border-green-500/30">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> ONLINE
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Row: Health Snapshot -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="hud-panel p-5 rounded-xl glow-green">
+                <h3 class="text-zinc-400 text-sm font-medium mb-4 uppercase tracking-wider">GPU Health</h3>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1"><span>VRAM Usage</span><span class="text-white">24.5GB / 48GB</span></div>
+                        <div class="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                            <div class="bg-blue-500 h-full" style="width: 51%"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <div><p class="text-zinc-500 text-xs">Temperature</p><p class="text-2xl font-bold">68°C</p></div>
+                        <div><p class="text-zinc-500 text-xs">Utilization</p><p class="text-2xl font-bold">42%</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hud-panel p-5 rounded-xl border-zinc-700">
+                <h3 class="text-zinc-400 text-sm font-medium mb-4 uppercase tracking-wider">System Health</h3>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400 text-sm">CPU Load</span>
+                        <span class="font-mono text-white">12.5%</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400 text-sm">RAM Usage</span>
+                        <span class="font-mono text-white">8.2GB / 64GB</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400 text-sm">Disk Free</span>
+                        <span class="font-mono text-white">120GB</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hud-panel p-5 rounded-xl border-zinc-700">
+                <h3 class="text-zinc-400 text-sm font-medium mb-4 uppercase tracking-wider">Service Status</h3>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400 text-sm">Llama Slots</span>
+                        <div class="flex gap-1">
+                            <div class="w-3 h-3 bg-blue-500 rounded-sm shadow-[0_0_5px_#3b82f6]"></div>
+                            <div class="w-3 h-3 bg-zinc-700 rounded-sm"></div>
+                            <div class="w-3 h-3 bg-zinc-700 rounded-sm"></div>
+                            <div class="w-3 h-3 bg-zinc-700 rounded-sm"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400 text-sm">Active Conns</span>
+                        <span class="font-mono text-white">3</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400 text-sm">API Health</span>
+                        <span class="text-green-400 text-xs font-bold">HEALTHY ✓</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Row: Token Traffic -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div class="lg:col-span-1 hud-panel p-5 rounded-xl border-zinc-700">
+                <h3 class="text-zinc-400 text-sm font-medium mb-6 uppercase tracking-wider">Token Totals</h3>
+                <div class="space-y-6">
+                    <div>
+                        <p class="text-zinc-500 text-xs mb-1">Cumulative Input</p>
+                        <p class="text-4xl font-black text-white tracking-tighter">1,240,582 <span class="text-sm font-normal text-zinc-500">tokens</span></p>
+                    </div>
+                    <div>
+                        <p class="text-zinc-500 text-xs mb-1">Cumulative Output</p>
+                        <p class="text-4xl font-black text-blue-400 tracking-tighter">852,109 <span class="text-sm font-normal text-zinc-500">tokens</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 hud-panel p-5 rounded-xl border-zinc-700">
+                <h3 class="text-zinc-400 text-sm font-medium mb-4 uppercase tracking-wider">Real-time TPS (Tokens Per Second)</h3>
+                <div class="h-32 w-full bg-zinc-900/50 rounded flex items-end gap-1 p-2 border border-zinc-800">
+                    <!-- Fake Graph Bars -->
+                    <div class="bg-blue-500/40 w-full" style="height: 20%"></div>
+                    <div class="bg-blue-500/40 w-full" style="height: 35%"></div>
+                    <div class="bg-blue-500/40 w-full" style="height: 60%"></div>
+                    <div class="bg-blue-500/40 w-full" style="height: 45%"></div>
+                    <div class="bg-blue-500/40 w-full" style="height: 80%"></div>
+                    <div class="bg-blue-500/60 w-full" style="height: 95%"></div>
+                    <div class="bg-blue-500/60 w-full" style="height: 70%"></div>
+                    <div class="bg-blue-500/40 w-full" style="height: 30%"></div>
+                    <div class="bg-blue-500/40 w-full" style="height: 15%"></div>
+                </div>
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead>
+                            <tr class="text-zinc-500 border-b border-zinc-800">
+                                <th class="pb-2">Request ID</th>
+                                <th class="pb-2">In</th>
+                                <th class="pb-2">Out</th>
+                                <th class="pb-2">Latency</th>
+                                <th class="pb-2 text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-300">
+                            <tr class="border-b border-zinc-800/50">
+                                <td class="py-2">#req_1042</td><td class="py-2">120</td><td class="py-2">450</td><td class="py-2">1.2s</td><td class="py-2 text-right text-green-400">✓ OK</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2">#req_1043</td><td class="py-2">85</td><td class="py-2">12</td><td class="py-2">0.4s</td><td class="py-2 text-right text-green-400">✓ OK</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Recovery Control -->
+        <div class="hud-panel p-6 rounded-xl border-zinc-700 relative overflow-hidden">
+            <h3 class="text-zinc-400 text-sm font-medium mb-8 uppercase tracking-wider">Recovery Command Center</h3>
+            
+            <!-- Progress Bar -->
+            <div class="relative flex justify-between items-center max-w-2xl mx-auto mb-12 px-4">
+                <div class="progress-line"></div>
+                <div class="flex flex-col items-center gap-2">
+                    <div class="progress-step"></div>
+                    <span class="text-[10px] text-zinc-500 uppercase">Cleanup</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                    <div class="progress-step active"></div>
+                    <span class="text-[10px] text-blue-400 uppercase font-bold">Socket</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                    <div class="progress-step"></div>
+                    <span class="text-[10px] text-zinc-500 uppercase">Reset</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                    <div class="progress-step"></div>
+                    <span class="text-[10px] text-zinc-500 uppercase">Verify</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                    <div class="progress-step"></div>
+                    <span class="text-[10px] text-zinc-500 uppercase">Tunnel</span>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex flex-wrap justify-center gap-4 mb-8">
+                <button class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(220,38,38,0.4)] uppercase tracking-widest text-sm">
+                    !!! Force Full Reset !!!
+                </button>
+                <div class="flex gap-2 bg-zinc-900 p-1 rounded-lg border border-zinc-700">
+                    <button class="px-4 py-2 hover:bg-zinc-800 text-zinc-300 text-xs rounded transition-colors">Rebuild Tunnel</button>
+                    <button class="px-4 py-2 hover:bg-zinc-800 text-zinc-300 text-xs rounded transition-colors">Kill Zombies</button>
+                    <button class="px-4 py-2 hover:bg-zinc-800 text-zinc-300 text-xs rounded transition-colors">Reset Socket</button>
+                </div>
+            </div>
+
+            <!-- Terminal Log -->
+            <div class="terminal-window p-4 rounded-lg h-48 overflow-y-auto text-sm leading-relaxed shadow-inner">
+                <div>[14:20:01] <span class="text-blue-400">INFO</span>: Initiating recovery sequence...</div>
+                <div>[14:20:02] <span class="text-blue-400">INFO</span>: Step 1/5 - Scanning for zombie llama processes...</div>
+                <div>[14:20:03] <span class="text-yellow-400">WARN</span>: Found 2 orphaned processes (PID 1290, 1301).</div>
+                <div>[14:20:04] <span class="text-blue-400">INFO</span>: Executing pkill -9... Done.</div>
+                <div>[14:20:05] <span class="text-blue-400">INFO</span>: Step 2/5 - Resetting SSH ControlMaster Socket at /tmp/vast_ssh_socket...</div>
+                <div class="animate-pulse text-white font-bold">_ Cursor blinking... awaiting response from remote agent...</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

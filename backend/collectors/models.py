@@ -445,3 +445,61 @@ class ModelCapabilities:
     release_date: str = ""
     knowledge_cutoff: str = ""
     found: bool = False
+
+# ── Vast Monitor ───────────────────────────────────────────────
+
+@dataclass
+class VastGPUStatus:
+    vram_used: float = 0.0
+    vram_total: float = 0.0
+    temp: float = 0.0
+    utilization: float = 0.0
+
+@dataclass
+class VastSystemStatus:
+    cpu_load: float = 0.0
+    mem_used: float = 0.0
+    disk_free: float = 0.0
+
+@dataclass
+class VastServiceStatus:
+    occupied_slots: int = 0
+    total_slots: int = 0
+    active_connections: int = 0
+    is_healthy: bool = False
+
+@dataclass
+class VastServerStatus:
+    gpu: VastGPUStatus = field(default_factory=VastGPUStatus)
+    system: VastSystemStatus = field(default_factory=VastSystemStatus)
+    service: VastServiceStatus = field(default_factory=VastServiceStatus)
+
+@dataclass
+class TokenCumulative:
+    input: int = 0
+    output: int = 0
+
+@dataclass
+class TokenRealtime:
+    tps: float = 0.0
+    latency_ms: float = 0.0
+
+@dataclass
+class TokenRequest:
+    id: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    duration: float = 0.0
+
+@dataclass
+class TokenMetrics:
+    cumulative: TokenCumulative = field(default_factory=TokenCumulative)
+    realtime: TokenRealtime = field(default_factory=TokenRealtime)
+    recent_requests: list[TokenRequest] = field(default_factory=list)
+
+@dataclass
+class RecoveryState:
+    current_step: int = 0
+    status: str = "idle"  # idle, running, success, failed
+    last_message: str = ""
+    updated_at: Optional[datetime] = None

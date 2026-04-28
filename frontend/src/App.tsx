@@ -16,6 +16,7 @@ import ChatPanel from './components/ChatPanel'
 import ProfilesPanel from './components/ProfilesPanel'
 import TokenCostsPanel from './components/TokenCostsPanel'
 import CorrectionsPanel from './components/CorrectionsPanel'
+import VastMonitor from './pages/VastMonitor'
 import PatternsPanel from './components/PatternsPanel'
 import SudoPanel from './components/SudoPanel'
 import ProvidersPanel from './components/ProvidersPanel'
@@ -42,6 +43,7 @@ function TabContent({ tab }: { tab: TabId }) {
     case 'providers': return <ProvidersPanel />
     case 'gateway': return <GatewayPanel />
     case 'model-info': return <ModelInfoPanel />
+    case 'vast-monitor': return <VastMonitor />
     default: return <DashboardPanel />
   }
 }
@@ -65,6 +67,7 @@ const GRID_CLASS: Record<TabId, string> = {
   providers: 'grid-cols-1',
   gateway: 'grid-cols-1',
   'model-info': 'grid-cols-1 lg:grid-cols-2',
+  'vast-monitor': 'grid-cols-1',
 }
 
 export default function App() {

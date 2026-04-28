@@ -19,6 +19,7 @@ export const translations = {
     'tab.providers': 'Providers',
     'tab.gateway': 'Gateway',
     'tab.model-info': 'Model',
+    'tab.vast-monitor': 'Vast Monitor',
 
     // Providers
     'providers.title': 'OAuth Providers',

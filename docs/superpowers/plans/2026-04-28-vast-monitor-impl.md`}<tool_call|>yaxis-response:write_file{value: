@@ -1,0 +1,104 @@
+# Vast Monitor Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal**: Implement a full monitoring and recovery dashboard for Vast.ai servers within the Hermes HUDUI, including real-time GPU/System health, Token traffic analytics, and a deterministic 5-step recovery control panel.
+
+**Architecture**: Hybrid Polling + SSE. A remote Python Agent on the server provides metrics and executes shell commands; HUDUI Backend proxies these requests with caching; React Frontend renders the dashboard and manages the recovery state machine.
+
+**Tech Stack**: Python (FastAPI) for Remote Agent & Backend, React (Vite + Tailwind) for Frontend, SSH Multiplexing for Recovery.
+
+---
+
+## File Mapping
+
+### 1. Remote Agent (To be deployed on Vast.ai)
+- Create: `vast-monitor-agent/main.py` - The core monitoring service and recovery executor.
+- Create: `vast-monitor-agent/requirements.txt` - Dependencies (`fastapi`, `uvicorn`, `psutil`).
+
+### 2. HUDUI Backend
+- Create: `backend/collectors/vast.py` - Logic to fetch and cache remote server data.
+- Modify: `backend/models.py` - Add `VastServerStatus`, `TokenMetrics`, and `RecoveryState` dataclasses.
+- Create: `backend/routes/vast.py` - API endpoints for status, tokens, recovery, and event relay.
+- Modify: `backend/main.py` - Register the vast routes.
+
+### 3. HUDUI Frontend
+- Create: `frontend/src/pages/VastMonitor.tsx` - The main dashboard page implementing the approved Mockup.
+- Create: `frontend/src/hooks/useVastApi.ts` - Custom hook for polling `/status` and subscribing to SSE events.
+- Modify: `frontend/src/App.tsx` - Register `VastMonitor` in the TABS array and TabContent mapping.
+
+---
+
+## Implementation Tasks
+
+### Task 1: Remote Monitor Agent Development
+**Goal**: Build a standalone Python agent that provides server health and executes recovery steps.
+
+- [ ] **Step 1: Implement Basic Health Collector**
+  Create `vast-monitor-agent/main.py` with `/status` endpoint using `psutil` and `nvidia-smi`.
+  ```python
+  # Example snippet for GPU check
+  def get_gpu_metrics():
+      import subprocess
+      res = subprocess.check_output(["nvidia-smi", "--query-gpu=memory.used,memory.total,temperature.gpu,utilization.gpu", "--format=csv,noheader,nounits"])
+      # Parse CSV and return dict
+  ```
+- [ ] **Step 2: Implement Token Metrics Collector**
+  Add `/metrics/tokens` endpoint that parses `llama-server` logs or internal API for TPS and cumulative tokens.
+- [ ] **Step 3: Implement Recovery Executor**
+  Implement `/recovery/full` and `/recovery/step`. Use `subprocess` to run `pkill -9 llama`, etc.
+- [ ] **Step 4: Implement SSE Event Stream**
+  Add `/events` endpoint using FastAPI's `EventSourceResponse` to push recovery step updates.
+- [ ] **Step 5: Verify Remote Agent Locally**
+  Run the agent locally and test all endpoints via `curl`.
+
+### Task 2: Backend Integration & LAN Binding
+**Goal**: Integrate the remote agent into HUDUI backend and enable network access.
+
+- [ ] **Step 1: Define Data Models**
+  Add `VastServerStatus`, `TokenMetrics` to `backend/models.py`.
+- [ ] **Step 2: Create Vast Collector**
+  Implement `backend/collectors/vast.py` with a caching layer (5s) for `/status`.
+- [ ] **Step 3: Implement API Routes**
+  Create `backend/routes/vast.py` to proxy requests to the remote agent and relay SSE events.
+- [ ] **Step 4: Register Routes & Enable LAN Binding**
+  Add routes to `backend/main.py`. Update Uvicorn startup to bind to `0.0.0.0`.
+- [ ] **Step 5: Verify Backend Proxy**
+  Test `/api/vast/status` via browser/curl and verify it returns cached remote data.
+
+### Task 3: Frontend Dashboard Implementation
+**Goal**: Build the React UI based on the approved Mockup.
+
+- [ ] **Step 1: Create API Hook**
+  Implement `frontend/src/hooks/useVastApi.ts` with SWR for polling and a native `EventSource` for SSE logs.
+- [ ] **Step 2: Build Health Snapshot Components**
+  Create the top row of cards (GPU, System, Service) with VRAM progress bars.
+- [ ] **Step 3: Build Token Analytics Panel**
+  Implement cumulative counters and a simple sparkline graph for TPS. Add the request detail table.
+- [ ] **Step 4: Build Recovery Control Center**
+  Implement the visual stepper (1 $\rightarrow$ 5) and the control buttons (`Force Reset`, etc.).
+- [ ] **Step 5: Integrate Log Terminal**
+  Create a terminal component that appends messages from the SSE stream.
+- [ ] **Step 6: Register Page in App.tsx**
+  Add `VastMonitor` to the main navigation and content area.
+
+### Task 4: End-to-End Verification & Deployment
+**Goal**: Deploy to Vast.ai and verify the full loop.
+
+- [ ] **Step 1: Deploy Remote Agent**
+  Use `scp` to move `vast-monitor-agent/` to server $\rightarrow$ Setup systemd service.
+- [ ] **Step 2: Verify LAN Access**
+  Access HUDUI from a different device on the same network via `http://192.168.88.123:5173`.
+- [ ] **Step 3: Test Full Recovery Sequence**
+  Trigger `[Force Full Reset]` $\rightarrow$ Verify UI steps update in real-time $\rightarrow$ Verify server is back online.
+- [ ] **Step 4: Final Polish & Commit**
+  Clean up code, update `AGENTS.md` with the new feature, and final commit.
+
+---
+
+## Verification Checklist
+- [ ] LAN access works from external device (0.0.0.0 verified).
+- [ ] GPU VRAM progress bar accurately reflects remote state.
+- [ ] Token TPS updates in real-time without crashing the browser.
+- [ ] Recovery sequence follows Step 1 $\rightarrow$ 5 strictly.
+- [ ] `llama-server` is successfully restarted and accessible after a Full Reset.

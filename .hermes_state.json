@@ -1,0 +1,31 @@
+{
+  "project": "vast-monitor",
+  "current_phase": "P2",
+  "gates": {
+    "P1": {
+      "status": "completed",
+      "artifact": "docs/ENV_VERIFIED.md",
+      "approved": true
+    },
+    "P2": {
+      "status": "in_progress",
+      "artifact": "docs/SPEC_VAST_MONITOR.md",
+      "approved": false
+    },
+    "P3": {
+      "status": "locked",
+      "artifact": "docs/PLAN_VAST_MONITOR.md",
+      "approved": false
+    },
+    "P4": {
+      "status": "locked",
+      "artifact": "code",
+      "approved": false
+    },
+    "P5": {
+      "status": "locked",
+      "artifact": "docs/VERIFICATION_REPORT.md",
+      "approved": false
+    }
+  }
+}
