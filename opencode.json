@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "servers": [
+      { "name": "pyright", "enabled": true },
+      { "name": "tsserver", "enabled": true }
+    ]
+  },
+  "mcp": {
+    "servers": [
+      { "name": "filesystem", "enabled": true }
+    ]
+  }
+}
