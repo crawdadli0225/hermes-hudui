@@ -55,7 +55,7 @@ async def fetch_vast_status() -> VastServerStatus:
             return status
     except Exception as e:
         # Log error and return default state
-        print(f"Error fetching Vast status from {BASE_URL}: {e}")
+        print(f"CRITICAL ERROR fetching Vast status from {BASE_URL}: {type(e).__name__} - {e}")
         return VastServerStatus()
 
 async def fetch_token_metrics() -> TokenMetrics:

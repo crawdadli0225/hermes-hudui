@@ -8,7 +8,7 @@ import httpx
 
 from ..collectors import vast as vast_collector
 
-router = APIRouter(prefix="/api/vast", tags=["Vast Monitor"])
+router = APIRouter(prefix="/vast", tags=["Vast Monitor"])
 
 @router.get("/status")
 async def get_status():

@@ -454,6 +454,7 @@ class VastGPUStatus:
     vram_total: float = 0.0
     temp: float = 0.0
     utilization: float = 0.0
+    error: Optional[str] = None
 
 @dataclass
 class VastSystemStatus:

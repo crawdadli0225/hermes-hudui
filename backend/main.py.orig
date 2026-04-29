@@ -17,7 +17,6 @@ if sys.platform == "darwin":
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 
 from .api import (
@@ -132,11 +131,6 @@ app.include_router(providers.router, prefix="/api")
 app.include_router(gateway.router, prefix="/api")
 app.include_router(model_info.router, prefix="/api")
 app.include_router(vast.router, prefix="/api")
-
-@app.get("/")
-async def serve_index():
-    """Serve the frontend index.html at the root URL."""
-    return FileResponse(STATIC_DIR / "index.html")
 
 # Serve frontend static files (after API routes so /api takes priority)
 if STATIC_DIR.exists():

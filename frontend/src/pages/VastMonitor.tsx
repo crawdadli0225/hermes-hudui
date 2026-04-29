@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Panel, { CapacityBar, Sparkline } from '../components/Panel';
 import { useVastApi } from '../hooks/useVastApi';
 

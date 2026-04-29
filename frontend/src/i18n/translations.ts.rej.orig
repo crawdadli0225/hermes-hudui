@@ -1,0 +1,4 @@
+@@ -432,2 +432,3 @@
+     'tab.gateway': '网关',
+     'tab.model-info': '模型',
++    'tab.vast-monitor': 'Vast 监控',

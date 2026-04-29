@@ -135,8 +135,10 @@ The vast-monitor-agent is a standalone Python service that must be deployed on t
 1. SSH to remote: `ssh -p 54647 root@61.71.33.195`
 2. Clone/upload agent code to `/root/vast-monitor-agent/`
 3. Install dependencies: `cd /root/vast-monitor-agent && pip install -r requirements.txt`
-4. Start agent: `python3 main.py` (or configure systemd if available)
-5. Verify: `curl http://localhost:8005/status`
+4. Start agent: `nohup python3 main.py > agent.log 2>&1 &`
+5. **Establish Tunnel (CRITICAL)**: Run this on your local machine to connect HUDUI to the Agent:
+   `ssh -p 54647 root@61.71.33.195 -L 8005:localhost:8005 -N`
+6. Verify: `curl http://localhost:8005/status`
 
 **Manual startup (if systemd unavailable):**
 ```bash
