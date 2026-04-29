@@ -1,5 +1,0 @@
-@@ -431,3 +431,4 @@
-     'tab.providers': '提供商',
-     'tab.gateway': '网关',
-     'tab.model-info': '模型',
-+    'tab.vast-monitor': 'Vast 监控',
